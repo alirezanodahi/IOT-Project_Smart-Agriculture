@@ -42,7 +42,7 @@ Below is the Fritzing diagram showing the circuit design for the system:
 
 ### Hardware Setup:
 
-- Flash the Arduino Mega and NodeMCU with the provided C++ code.
+- Flash the Arduino Mega and NodeMCUes with the provided C++ code.
 - Connect the sensors, relays, and actuators as per the circuit diagram.
 - Power the system using the 12V adapter and test each component.
 
@@ -63,10 +63,8 @@ Below is the Fritzing diagram showing the circuit design for the system:
 ## Future Enhancements
 - Integration with additional sensors (e.g., pH, EC sensors).
 - Improved user interface for better visualization of sensor data.
+- Add AI for data analysis.
 - More advanced control algorithms for irrigation and climate control.
-
-## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request for any improvements.
