@@ -1,29 +1,28 @@
-//library
 #include <SoftwareSerial.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-// Define communication pin
+
 #define RX_PIN D2  // RX pin on NodeMCU (connects to TX3 on Arduino Mega)
-#define TX_PIN D1  // TX pin on NodeMCU (not used in this setup but connect to RX3) becouse the comunicate is one way not two way
+#define TX_PIN D1  // TX pin on NodeMCU (not used in this setup but connect to RX3)
+
 // Define LED pins
-#define RED_LED D5 //
+#define RED_LED D5
 #define YELLOW_LED D6
 #define GREEN_LED D7
-//FOR COMUNICATION
+#define CLOUD_LED D4
+
 SoftwareSerial megaSerial(RX_PIN, TX_PIN);
-//network SSID AND PASSSWORD AND SERVER IP
+
+// Network SSID and Password
 const char* ssid = "A54";
 const char* password = "0987654321";
-const char* mqtt_server = "87.236.166.178";//"192.168.63.248" for amir local pc and "192.168.150.152" for ali local pc
-//object  for wifi communication
+const char* mqtt_server = "87.236.166.178"; // MQTT server IP
+
 WiFiClient espClient;
 PubSubClient client(espClient);
-//--------------------------------------------------------------------------------------------------------------------------------------
-//***************************function************************************
-//wifi
+
 void setup_wifi() {
   delay(100);
-  // Connect to a WiFi network
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -33,26 +32,33 @@ void setup_wifi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    digitalWrite(YELLOW_LED, !digitalRead(YELLOW_LED)); // Blink yellow LED while connecting
+    digitalWrite(RED_LED, HIGH); // Red LED on during connection attempt
   }
+  
+  digitalWrite(YELLOW_LED, LOW); // Turn off yellow LED when connected
+  digitalWrite(RED_LED, LOW); // Turn off red LED when connected
+
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
-
   Serial.println(WiFi.localIP());
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  // Handle message arrived  *?
+  // Handle message arrived
 }
 
 void reconnect() {
-  // Loop until we're reconnected
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
+    digitalWrite(YELLOW_LED, HIGH); // Yellow LED on during connection attempt
     // Attempt to connect with username and password
     if (client.connect("NodeMCUClient", "admin", "123")) {
       Serial.println("connected");
-      // Subscribe
+      digitalWrite(GREEN_LED, HIGH); // Turn on green LED when connected
+      digitalWrite(RED_LED, LOW); // Turn off red LED when connected
+      digitalWrite(YELLOW_LED, LOW); // Turn off yellow LED when connected
       client.subscribe("yourTopic");
     } else {
       Serial.print("failed, rc=");
@@ -60,22 +66,20 @@ void reconnect() {
       Serial.println(" try again in 5 seconds");
       // Wait 5 seconds before retrying
       delay(5000);
+      digitalWrite(YELLOW_LED, LOW); // Turn off yellow LED between attempts
+      digitalWrite(RED_LED, HIGH); // Turn on red LED if connection failed
     }
   }
 }
-//------------------------------------------------------------------------------------------------------------------------------------
-// reciver from mega
-void reciver() {
-  Serial.println("Receive Function!!");/deb
-  if (true) { // Check if data is available to read from SoftwareSerial
 
-    String receivedData = megaSerial.readStringUntil('\n'); // Read data until a newline character is encountered
+void receiver() {
+  Serial.println("Receive Function!!");
+  if (megaSerial.available()) {
+    String receivedData = megaSerial.readStringUntil('\n');
 
-    // Print the received data to the Serial Monitor
     Serial.print("Received data: ");
     Serial.println(receivedData);
 
-    // Parse the received data (assuming the format: temperature,humidity,moisture,gasValue,pump_state)
     int commaIndex1 = receivedData.indexOf(',');
     int commaIndex2 = receivedData.indexOf(',', commaIndex1 + 1);
     int commaIndex3 = receivedData.indexOf(',', commaIndex2 + 1);
@@ -93,7 +97,6 @@ void reciver() {
     bool fan2State = receivedData.substring(commaIndex6 + 1, commaIndex7).toInt();
     bool heaterState = receivedData.substring(commaIndex7 + 1).toInt();
 
-    // Print parsed values for debugging
     Serial.print("Temperature: ");
     Serial.println(temperature);
     Serial.print("Humidity: ");
@@ -111,43 +114,43 @@ void reciver() {
     Serial.print("Heater State: ");
     Serial.println(heaterState);
 
-    // Convert numerical values to strings
     String temperatureStr = String(temperature);
     String humidityStr = String(humidity);
     String moistureStr = String(moisture);
     String gasValueStr = String(gasValue);
-    String pumpStateStr = pumpState ? "1" : "0"; 
+    String pumpStateStr = pumpState ? "1" : "0";
     String fan1StateStr = fan1State ? "1" : "0";
-    String fan2StateStr = pumpState ? "1" : "0";
-    String heaterStateStr = pumpState ? "1" : "0";
+    String fan2StateStr = fan2State ? "1" : "0";
+    String heaterStateStr = heaterState ? "1" : "0";
 
-    // Publish the strings
     client.publish("Temperature", temperatureStr.c_str());
     client.publish("Humidity", humidityStr.c_str());
     client.publish("Moisture", moistureStr.c_str());
     client.publish("GasValue", gasValueStr.c_str());
     client.publish("PumpState", pumpStateStr.c_str());
-    client.publish("FanState-1",  fan1StateStr.c_str());
-    client.publish("FanState-2",  fan2StateStr.c_str());
-    client.publish("HeaterState",  heaterStateStr.c_str());
+    client.publish("FanState-1", fan1StateStr.c_str());
+    client.publish("FanState-2", fan2StateStr.c_str());
+    client.publish("HeaterState", heaterStateStr.c_str());
+
+    digitalWrite(CLOUD_LED, LOW); // Blink green LED to indicate data sent
+    delay(100);
+    digitalWrite(CLOUD_LED, HIGH);
   }
 }
 
-
 void setup() {
-  // Initialize Serial communication for debugging
   Serial.begin(9600);
   megaSerial.begin(9600);
 
-  // Initialize LED pins
   pinMode(RED_LED, OUTPUT);
+  pinMode(CLOUD_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
 
-  // Initial LED state
   digitalWrite(RED_LED, HIGH);
   digitalWrite(YELLOW_LED, LOW);
   digitalWrite(GREEN_LED, LOW);
+  digitalWrite(CLOUD_LED, LOW);
 
   Serial.println("NodeMCU ready to receive data from Arduino Mega");
 
@@ -161,7 +164,8 @@ void loop() {
     reconnect();
   }
   client.loop();
-  reciver();
-  delay(3000);//It sends to vm cloud every 3 seconds
+  receiver();
+  delay(3000);
 }
+
 
