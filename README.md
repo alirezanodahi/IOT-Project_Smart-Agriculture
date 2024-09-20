@@ -23,7 +23,7 @@ This project is an IoT-based smart agriculture system that monitors environmenta
 ## System Design
 Below is the Fritzing diagram showing the circuit design for the system:
 
-![Fritzing Circuit Diagram](<add-image-link-here>)
+![Fritzing Circuit Diagram](<https://github.com/alirezanodahi/IOT-Project_Smart-Agriculture/blob/main/iot_design_bb.jpg>)
 
 ## Setup Instructions
 
