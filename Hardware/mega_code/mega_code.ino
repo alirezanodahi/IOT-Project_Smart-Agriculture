@@ -17,24 +17,23 @@
 #define LED_YL69_WET 30
 #define LED_YL69_DRY 31
 // INPUT SENSOR PIN
-#define YL69_PIN A15
+#define YL69_PIN A9
 #define MQ4_PIN A8
 #define DHT11_PIN 21
 // OBJECT NAME DEFINE 
 #define DHTTYPE DHT11
 //CONTROLLER PIN
-#define BUZZER_PIN 20//3
+#define BUZZER_PIN 20
 #define FAN_1_PIN 19
 #define FAN_2_PIN 18
 #define HITTER_PIN 17
 //------------------------------------------------------------------------------------------------------
 //THRESHOLDS
-const int YL69_THRESHOLD = 700;
-const int MQ4_THRESHOLD = 300;
-const float DHT11_HU_THRESHOLD_HIGH = 60.0;
-const float DHT11_HU_THRESHOLD_LOW = 38.0;
-const float DHT11_TEMP_THRESHOLD_HOT = 37.0;
-const float DHT11_TEMP_THRESHOLD_WARM = 15.0;
+const int YL69_THRESHOLD = 700;//200 for test
+const int MQ4_THRESHOLD = 300;//100 or 120 for test
+const float DHT11_HU_THRESHOLD_HIGH = 60.0;//40 for test
+const float DHT11_TEMP_THRESHOLD_HOT = 37.0;//35 for test
+const float DHT11_TEMP_THRESHOLD_WARM = 15.0;//30 for test
 // Button pins
 const int btnRIGHT = 0;
 const int btnUP = 1;
@@ -50,10 +49,14 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 DHT dht(DHT11_PIN, DHTTYPE);
 //--------------------------------------------------------------------------------------------------------
 //******************VARIABLE**********************
-//PUMP STATE
+//ACTUATOR STATE
 bool pump_state = false;
+bool fan_1_state_humidity = false; 
+bool fan_1_state_gas = false;
+bool fan_2_state = false;
+bool hitter_state = false;
 // Current display mode
-enum DisplayMode { TEMPERATURE_HUMIDITY, TEMPERATURE_F, YL69_MQ4, TIME_STATUS, FAN_STATUS };
+enum DisplayMode { TEMPERATURE_HUMIDITY, TEMPERATURE_F, YL69_MQ4, PUMP_STATE, FAN_STATUS };
 DisplayMode currentMode = TEMPERATURE_HUMIDITY;
 //DEFULT GLOBAL VALUE
 float temperature = 0;
@@ -68,7 +71,7 @@ void updateDisplay();
 void showTemperatureHumidity();
 void showTemperatureF();
 void showYL69MQ4();
-void showTimeStatus();
+void showPumpStatus();
 void showFanStatus();
 //------------------------------------------------------------------------------------------------------------------------------
 //************************FUNCTION***********************
@@ -77,17 +80,17 @@ void yl69_dry() {
   digitalWrite(LED_YL69_WET, LOW);
   digitalWrite(LED_YL69_DRY, HIGH);
   pump_state = true;
-  Serial.println(" dry Pump state: ON"); 
+  Serial.println(" dry Pump state: ON"); //deb
 }
 void yl69_wet() {
   digitalWrite(LED_YL69_DRY, LOW);
   digitalWrite(LED_YL69_WET, HIGH);
   pump_state = false;
-  Serial.println(" yl69_wet Pump state: OFF"); 
+  Serial.println(" yl69_wet Pump state: OFF"); //deb
 }
 int readYL69Sensor() {
   YL69_Value = analogRead(YL69_PIN);
-  Serial.print("YL69_PIN: ");
+  Serial.print("YL69_PIN: ");//deb
   Serial.println(YL69_Value);
   return YL69_Value;
 }
@@ -101,47 +104,62 @@ void checkYL69Sensor() {
 }
 //--------------------------------------------------------------------------------------------------------------------------
 //MQ4
+void Fan1State() {//also use in dh11 type
+  if (fan_1_state_humidity || fan_1_state_gas){
+    digitalWrite(FAN_1_PIN, LOW);
+  }
+  else{
+    digitalWrite(FAN_1_PIN, HIGH);
+  }
+}
 void alarm_on() {
   digitalWrite(LED_MQ4_DANGER, HIGH);
   digitalWrite(LED_MQ4_CAUTION, LOW);
   digitalWrite(LED_MQ4_NORMAL, LOW);
-  
-  tone(BUZZER_PIN, 5000);
-  delay(300);
-  digitalWrite(FAN_1_PIN, LOW);
-  Serial.println("gas danger");
-  Serial.print("FAN_1_PIN: ");
-  Serial.println(digitalRead(FAN_1_PIN));
+  fan_1_state_gas = true;
+  buzzer_sound();
+  Fan1State();
+  Serial.println("gas danger");//deb
+  Serial.print("FAN_1_PIN: ");//deb
 }
 void alarm_off() {
   digitalWrite(LED_MQ4_DANGER, LOW);
   digitalWrite(LED_MQ4_CAUTION, LOW);
   digitalWrite(LED_MQ4_NORMAL, HIGH);
-  noTone(BUZZER_PIN);
-  digitalWrite(FAN_1_PIN, HIGH);
-  Serial.println("gas normal");
-  Serial.println(digitalRead(FAN_1_PIN));
+  noTone(BUZZER_PIN);//make sure buzzer is off
+  fan_1_state_gas = false;
+  Fan1State();
+  Serial.println("gas normal");//deb
+  Serial.println(digitalRead(FAN_1_PIN));//deb
 }
 void MQ4_caution() {
   digitalWrite(LED_MQ4_DANGER, LOW);
   digitalWrite(LED_MQ4_CAUTION, HIGH);
   digitalWrite(LED_MQ4_NORMAL, LOW);
   noTone(BUZZER_PIN);
-  digitalWrite(FAN_1_PIN, HIGH);
-  Serial.println("gas Caution");
-  Serial.println(digitalRead(FAN_1_PIN));
+  fan_1_state_gas = false;
+  Fan1State();
+  Serial.println("gas Caution");//deb
+  Serial.println(digitalRead(FAN_1_PIN));//deb
+}
+void buzzer_sound(){
+  for(int i = 0; i<5; i++){
+    tone(BUZZER_PIN, 10000,500);
+    delay(500);
+    noTone(BUZZER_PIN);
+  }
 }
 int readMQ4Sensor() {
   int MQ4_Value = analogRead(MQ4_PIN);
-  Serial.print("MQ-4: ");
-  Serial.println(MQ4_Value);
+  Serial.print("MQ-4: ");//deb
+  Serial.println(MQ4_Value);//deb
   return MQ4_Value;
 }
 void checkMQ4Sensor() {
   MQ4_Value = readMQ4Sensor();
   if (MQ4_Value > MQ4_THRESHOLD) {
     alarm_on();
-  } else if (MQ4_Value > MQ4_THRESHOLD - 50) {
+  } else if (MQ4_Value > MQ4_THRESHOLD - 50)/*20 or 10 for test*/ {
     MQ4_caution();
   } else {
     alarm_off();
@@ -150,54 +168,64 @@ void checkMQ4Sensor() {
 //----------------------------------------------------------------------------------------------------------------------------------------
 //DH11
 void dh11hu_normal() {
-  Serial.println("Humidity is normal.");
+  Serial.println("Humidity is normal.");//deb
   digitalWrite(LED_DH11HU_NORMAL, HIGH);
   digitalWrite(LED_DH11HU_COUTION, LOW);
-  digitalWrite(FAN_2_PIN, HIGH);
+  fan_1_state_humidity = false;
+  Fan1State();
 }
 void dh11hu_caution() {
-  Serial.println("Humidity caution.");
+  Serial.println("Humidity caution.");//deb
   digitalWrite(LED_DH11HU_NORMAL, LOW);
   digitalWrite(LED_DH11HU_COUTION, HIGH);
-  digitalWrite(FAN_2_PIN, LOW);
+  fan_1_state_humidity = true;
+  Fan1State();
+  
 }
 void dh11temp_warm() {
-  Serial.println("Temperature cool.");
+  Serial.println("Temperature cool.");//deb
   digitalWrite(LED_DH11T_COLD, LOW);
   digitalWrite(LED_DH11T_WARM, HIGH);
   digitalWrite(LED_DH11T_HOT, LOW);
-  digitalWrite(FAN_1_PIN, HIGH);
+  digitalWrite(FAN_2_PIN, HIGH);
   digitalWrite(HITTER_PIN, HIGH);
+  bool fan_2_state = false;
+  bool hitter_state = false;
 }
 void dh11temp_cold() {
-  Serial.println("Temperature cold.");
+  Serial.println("Temperature cold.");//deb
   digitalWrite(LED_DH11T_WARM, LOW);
   digitalWrite(LED_DH11T_COLD, HIGH);
   digitalWrite(LED_DH11T_HOT, LOW);
-  digitalWrite(FAN_1_PIN, HIGH);
-  digitalWrite(HITTER_PIN, LOW);
+  digitalWrite(FAN_2_PIN, HIGH);
+  digitalWrite(HITTER_PIN, LOW);  
+  bool fan_2_state = false;
+  bool hitter_state = true;
+
 }
 void dh11temp_hot() {
   Serial.println("Temperature hot.");
   digitalWrite(LED_DH11T_COLD, LOW);
   digitalWrite(LED_DH11T_WARM, LOW);
   digitalWrite(LED_DH11T_HOT, HIGH);
-  digitalWrite(FAN_1_PIN, LOW);
+  digitalWrite(FAN_2_PIN, LOW);
   digitalWrite(HITTER_PIN, HIGH);
+  bool fan_2_state = true;
+  bool hitter_state = false;
 }
 void checkDHT11Sensor() {
   humidity = dht.readHumidity();
   temperature = dht.readTemperature();
   if (isnan(humidity) || isnan(temperature)) {
-    Serial.println("Failed to read from DHT sensor!");
+    Serial.println("Failed to read from DHT sensor!");//sensor is disconnect
     return;
   }
-  Serial.print("Humidity (%): ");
-  Serial.println(humidity, 2);
-  Serial.print("Temperature (°C): ");
-  Serial.println(temperature, 2);
+  Serial.print("Humidity (%): ");//deb
+  Serial.println(humidity, 2);//deb
+  Serial.print("Temperature (°C): ");//deb
+  Serial.println(temperature, 2);//deb
   // Check humidity
-  if (humidity > DHT11_HU_THRESHOLD_HIGH || humidity < DHT11_HU_THRESHOLD_LOW) {
+  if (humidity > DHT11_HU_THRESHOLD_HIGH ) {
     dh11hu_caution();
   } else {
     dh11hu_normal();
@@ -219,11 +247,11 @@ void send_to_node() {
     int moisture = analogRead(YL69_PIN);      
     int gasValue = analogRead(MQ4_PIN);       
     // Format data as a string to send via serial
-    String dataToSend = String(temperature) + "," + String(humidity) + "," + String(moisture) + "," + String(gasValue) + "," + String(pump_state) + "," String(humidity) + "," String(humidity) + ",";
-    // Send data via Serial3 every 5 minute (300000 milliseconds) we can ise 60000 ms (1 min) for see
+    String dataToSend = String(temperature) + "," + String(humidity) + "," + String(moisture) + "," + String(gasValue) + "," + String(pump_state)+ "," + String((fan_1_state_gas || fan_1_state_humidity))+ "," + String(fan_2_state)+ "," + String(hitter_state);
+    // Send data via Serial3 every 5 minute (300000 milliseconds) we can use 60000 ms (1 min) for test
     static unsigned long previousMillis = 0;
     unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= 3000) {//decrease to test and debyg
+    if (currentMillis - previousMillis >= 3000) {//decrease to test and debyg every 3 secound
         Serial3.println("Sending data to NodeMCU...");
         Serial3.println(dataToSend);
         Serial.println("Sending data to NodeMCU...");
@@ -245,7 +273,7 @@ void button_select() {
       updateDisplay();
       break;
     case btnUP:
-      currentMode = TIME_STATUS ;
+      currentMode = PUMP_STATE ;
       updateDisplay();
       break;
     case btnDOWN:
@@ -280,8 +308,8 @@ void updateDisplay() {
     case YL69_MQ4:
       showYL69MQ4();
       break;
-    case TIME_STATUS:
-      showTimeStatus();
+    case PUMP_STATE:
+      showPumpStatus();
       break;
     case FAN_STATUS:
       showFanStatus();
@@ -322,11 +350,10 @@ void showYL69MQ4() {
   lcd.print("Gas: ");
   lcd.print(MQ4_Value);
 }
-void showTimeStatus() {
+void showPumpStatus() {
   lcd.setCursor(0, 0);
   lcd.print("pump status: ");
   lcd.print(pump_state); 
-
   lcd.setCursor(0, 1);
   lcd.print("heater status:");
   lcd.print(digitalRead(HITTER_PIN) ? "off" : "on");
@@ -395,7 +422,7 @@ void setup() {
 void loop() {
   static unsigned long lastSensorReadTime = 0;
   static unsigned long lastButtonCheckTime = 0;
-  const unsigned long sensorInterval = 5000; // 5 seconds for sensor checks decrease to test and debug
+  const unsigned long sensorInterval = 5000; // 5 seconds for sensor checks decrease to test and debug and run send to node mcu function
   const unsigned long buttonCheckInterval = 100; // 100 milliseconds for button checks
 
   unsigned long currentMillis = millis();
