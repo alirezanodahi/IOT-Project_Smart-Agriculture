@@ -1,0 +1,26 @@
+{% block content %}
+
+<head>
+    <title>Sensor Data</title>
+</head>
+
+<body>
+    <h1>Latest Sensor Data</h1>
+    <table>
+        <tr>
+            <th>Data Name</th>
+            <th>Data Value</th>
+            <th>Date</th>
+        </tr>
+        {% for data in sensor_data %}
+        <tr>
+            <td>{{ data.dataName }}</td>
+            <td>{{ data.dataValue }}</td>
+            <td>{{ data.date }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+
+</html>
+{% endblock %}
