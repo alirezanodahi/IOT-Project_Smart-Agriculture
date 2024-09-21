@@ -1,0 +1,16 @@
+cd "C:\Program Files\mosquitto\"
+
+# create a username and password
+.\mosquitto_passwd.exe -c password_file_name admin
+
+
+
+# add this line to config File in C:\Program Files\mosquitto\mosquitto.conf
+listener 1883
+allow_anonymous false
+password_file password_file_name
+
+
+#run server
+.\mosquitto.exe -v -c mosquitto.conf
+
